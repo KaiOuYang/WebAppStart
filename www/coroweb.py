@@ -125,7 +125,7 @@ class RequestHandler(object):
                     return web.HTTPBadRequest('Missing argument: %s'%name)
         logging.info('call with args: %s'%str(kw))
         try:
-            r = await self._func(**kw)
+            r = await self._func(**kw)#URL处理函数连接点
             return r
         except:
             return dict(error = "ApiError")
@@ -139,22 +139,23 @@ def add_route(app,fn):
     if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
         fn = asyncio.coroutine(fn)
     logging.info('add route %s %s => %s(%s)'%(method,path,fn.__name__,', '.join(inspect.signature(fn).parameters.keys())))
-    app.router.add_route(method,path,RequestHandler(app,fn))#参考app.py里的内容，关键点在注册好后调用，这里是全自动扫描注册
-
+    app.router.add_route(method,path,RequestHandler(app,fn))#参考app.py里的内容，关键点在注册好后调用，这里是全自动扫描注册,都是依据此语句构建的框架
+    #貌似 RequestHandler(app,fn)只是初始化了一个实例，每一个路径都对应一个实例
 
 def add_routes(app,module_name):
     n = module_name.rfind('.')
     if n == (-1):
-        mod = __import__(module_name,globals(),locals())
+        mod = __import__(module_name,globals(),locals())#某模块内容经常变化，则用__import__动态加载
     else:
-        name = module_name[n+1:]
+        name = module_name[n+1:]#拿到后缀名  handler.py 中的py
         mod = getattr(__import__(module_name[:n],globals(),locals(),[name]),name)
+    temp =dir(mod)
     for attr in dir(mod):
         if attr.startswith('_'):
             continue
-        fn = getattr(mod,attr)
+        fn = getattr(mod,attr)#从模块中拿出指定的函数索引
         if callable(fn):
-            method= getattr(fn,'__method__',None)
+            method= getattr(fn,'__method__',None)#从函数中拿出指定的特性
             path=getattr(fn,'__route__',None)
             if method and path:
                 add_route(app,fn)

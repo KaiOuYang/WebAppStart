@@ -11,7 +11,7 @@ def log(sql, args=()):
     logging.info('SQL: %s' % sql)
 
 
-async def create_pool(loop, **kw):
+async def create_pool(loop, **kw):#异步连接池不用同步等待，不必频繁打开或关闭数据库连接，尽量复用
     logging.info('create database connection pool...')
     global __pool
     __pool = await aiomysql.create_pool(
@@ -110,32 +110,34 @@ class TextField(Field):
         super().__init__(name, 'text', False, default)
 
 
-class ModelMetaclass(type):
+class ModelMetaclass(type):#目的是产生一个类实例，传递给子类init
 
-    def __new__(cls, name, bases, attrs):
+    def __new__(cls, name, bases, attrs):#如User类传入，则name='User',attrs为User类中定义的属性，bases为包含orm.Model类的元组
         if name == 'Model':#若传过来的是Model类则原封不动
-            return type.__new__(cls, name, bases, attrs)
+            return type.__new__(cls, name, bases, attrs)#返回的是类实例，类似于类产生实例那样，此刻由type类产生类，而cls为ModelMetaclass
         tableName = attrs.get('__table__', None) or name
         logging.info('found model: %s (table: %s)' % (name, tableName))
-        mappings = dict()
-        fields = []
-        primaryKey = None
-        for k, v in attrs.items():
-            if isinstance(v, Field):
+        mappings = dict()#存放过滤出的 Field类 属性键与键值
+        fields = []#存放除主键外的Field类 属性键
+        primaryKey = None#存放具有主键属性的 键值
+        for k, v in attrs.items():#过滤出需要的 参数类键和键值
+            if isinstance(v, Field):#检查属性值是否是 自己定义的参数类Field
                 logging.info('  found mapping: %s ==> %s' % (k, v))
                 mappings[k] = v
                 if v.primary_key:
                     # 找到主键:
-                    if primaryKey:
+                    if primaryKey:#主键唯一判断
                         raise Exception('Duplicate primary key for field: %s' % k)
                     primaryKey = k
                 else:
                     fields.append(k)
-        if not primaryKey:
+        if not primaryKey:#必须要有主键
             raise Exception('Primary key not found.')
         for k in mappings.keys():#之所以删除是为了实例传入参数后腾位置避免对应属性被覆盖掉
-            attrs.pop(k)
-        escaped_fields = list(map(lambda f: '`%s`' % f, fields))#装的是除主键外的其它列名
+            attrs.pop(k)#从原来的类属性字典attrs中删除掉 所有的 Field类 的属性键与键值
+        escaped_fields = list(map(lambda f: '`%s`' % f, fields))#变形除主键外的其它列名,即两边加上了符号``
+        #总的来说，attrs去掉了一块Field类的属性键(无论主键)，保存到了mappings中，而fields存放无主键属性的键，primaryKey存放有主键属性的键
+        #然后开始再attrs中创建新键，重新分封
         attrs['__mappings__'] = mappings  # 保存属性和列的映射关系,划分个子部分归拢全部参数类型的属性,保存属性和列的映射关系
         attrs['__table__'] = tableName
         attrs['__primary_key__'] = primaryKey  # 主键属性名,主键只可能有一个
@@ -143,11 +145,13 @@ class ModelMetaclass(type):
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
         attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (
         tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
+        # 类似 insert into `users` (`email`,`passwd`,`name`, `id`) values (?,?,?,?)
         attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (
         tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
+        #即'update `blogs` set `user_id`=?, `user_name`=?, `user_image`=?, `name`=?, `summary`=?, `content`=?, `created_at`=? where `id`=?'
         attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
-        return type.__new__(cls, name, bases, attrs)
-
+        return type.__new__(cls, name, bases, attrs)#返回的是类实例，类似于类产生实例那样，然后该实例调用类的init方法，这个类实例也就是init里的self
+        #总结即 将 原本User类中的attrs重新铸造了一遍
 
 class Model(dict, metaclass=ModelMetaclass):
 

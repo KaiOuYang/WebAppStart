@@ -67,10 +67,11 @@ async def data_factory(app, handler):
         return (await handler(request))
     return parse_data
 
-async def response_factory(app, handler):
+async def response_factory(app, handler):#将整个的css和js以及html都返回给了浏览器
     async def response(request):
         logging.info('Response handler...')
-        r = await handler(request)
+        r = await handler(request)#RequestHandler(app,fn)实例提取了request中的参数直接连通到指定URL处理函数后得到返回值
+        #其实handler就是经app.router.add_route(method,path,RequestHandler(app,fn))确定好的RequestHandler(app,fn)实例
         if isinstance(r, web.StreamResponse):
             return r
         if isinstance(r, bytes):

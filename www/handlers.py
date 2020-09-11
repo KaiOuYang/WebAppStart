@@ -247,7 +247,7 @@ _RE_SHA1 = re.compile(r'^[0-9a-f]{40}$')
 
 ## 用户注册API
 @post('/api/users')
-async def api_register_user(*, email, name, passwd):
+async def api_register_user(*, email, name, passwd):#连接ORM验证
     if not name or not name.strip():
         raise APIValueError('name')
     if not email or not _RE_EMAIL.match(email):

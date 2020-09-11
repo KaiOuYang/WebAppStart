@@ -1,14 +1,6 @@
-from coroweb import add_routes
-from aiohttp import web
-from coroweb import RequestHandler
-from handlers import handerOne
-
-import asyncio,os,json,time
 
 import orm
 from models import User, Blog, Comment
-
-loop = asyncio.get_event_loop()
 
 async def test():
     await orm.create_pool(user='root', password='123456', db='awesome',loop=loop)
@@ -17,7 +9,12 @@ async def test():
 
     await u.save()
 
-loop.run_until_complete(test())
+module_name = 'handlers.py'
+n = module_name.rfind('.')
+name = module_name[n+1:]
+mod2 = __import__(module_name[:n],globals(),locals(),[name])
+# mod = getattr(__import__(module_name[:n],globals(),locals(),[name]),name)
+print(dir(mod2))
 # app=1
 # add_routes(app, 'handlers.py')
 
